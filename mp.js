@@ -142,7 +142,7 @@ button:disabled{opacity:.5;cursor:not-allowed;filter:none}
     const v = ($('#mc').value || '').trim().toUpperCase();
     if (v.length !== 4) return note('Enter the 4-character code.');
     if (typeof Peer === 'undefined') return note('Online play needs internet.');
-    teardown(); isHost = false; code = v; note('Connecting…');
+    teardown(); isHost = false; code = v; note('Step 1/3: contacting server…');
     const my = gen, p = await mkPeer();
     if (my !== gen) { p.destroy(); return; }
     peer = p;
@@ -153,8 +153,13 @@ button:disabled{opacity:.5;cursor:not-allowed;filter:none}
     peer.on('error', (e) => note(e.type === 'peer-unavailable' ? 'Room not found.' : 'Connection problem: ' + e.type));
     peer.on('open', () => {
       hostConn = peer.connect(PFX + code, { reliable: true });
-      opened = true;
-      hostConn.on('open', () => { clearTimeout(joinT); note('Connected.'); });
+      opened = true; note('Step 2/3: server OK, finding room…');
+      hostConn.on('open', () => { clearTimeout(joinT); note('Step 3/3: connected.'); });
+      hostConn.on('error', (e) => note('Link error: ' + (e.type || e)));
+      try {
+        const pc = hostConn.peerConnection;
+        pc.addEventListener('iceconnectionstatechange', () => { if (!hostConn.open) note('Step 3/3: link ' + pc.iceConnectionState + '…'); });
+      } catch (e) {}
       hostConn.on('data', (d) => onData(d, hostConn));
       hostConn.on('close', () => {
         const was = active; teardown();
