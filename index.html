@@ -105,6 +105,7 @@
   <div class="panel" id="panel"></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 //SIM-START
 let HW = 62;
@@ -468,10 +469,10 @@ function aiInput(c) {
       <span><kbd>Space</kbd></span><span>Handbrake drift</span>
       <span><kbd>Shift</kbd></span><span>Nitro</span>
       <span><kbd>R</kbd> <kbd>P</kbd> <kbd>M</kbd></span><span>Reset, pause, mute</span></div>
-      <button id="go">Start race</button>`;
+      <button id="go">Start race</button><button class="ghost" id="online">Play online</button>`;
     screenEl.classList.remove('hide');
     panel.querySelectorAll('.tk').forEach((b) => { b.onclick = () => { selectTrack(+b.dataset.i); showMenu(); }; });
-    $('#go').onclick = newRace; $('#go').focus();
+    $('#go').onclick = newRace; $('#online').onclick = () => MP.open(); $('#go').focus();
   }
 
   function onPlayerFinish() {
@@ -580,7 +581,7 @@ function aiInput(c) {
       for (let s = 0; s < steps; s++) {
         for (const c of cars) {
           const ci = (c === player && !c.finished) ? (inp = readInput()) : aiInput(c);
-          stepCar(c, ci, h);
+          if (c.remote) MP.remote(c, h); else stepCar(c, ci, h);
           if (c.stuck > 3 || c.dist > HW + 520) { respawn(c); if (c === player) toast('Back on track'); }
           if (c.slip > 120 && Math.hypot(c.vx, c.vy) > 60 || (ci.hb && Math.hypot(c.vx, c.vy) > 120)) {
             const ca = Math.cos(c.a), sa = Math.sin(c.a);
@@ -842,10 +843,12 @@ function aiInput(c) {
     requestAnimationFrame(frame);
   }
 
+  window.G = { get cars() { return cars; }, set cars(v) { cars = v; }, get player() { return player; }, get state() { return state; }, get trackIdx() { return trackIdx; }, selectTrack, newRace, showMenu, toast };
   selectTrack(0);
   showMenu();
   requestAnimationFrame(frame);
 })();
 </script>
+<script src="mp.js"></script>
 </body>
 </html>
