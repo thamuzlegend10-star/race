@@ -7,6 +7,28 @@
   const NAMES = ['Teal', 'Pink', 'Gold', 'Violet'];
   const PFX = 'aurora-gp-', ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
+  // TURN relay: lets players on different networks connect. For best reach, make a free
+  // account at metered.ca, create an app, and paste its app name and API key here.
+  const METERED_APP = '', METERED_KEY = '';
+  const OR = { username: 'openrelayproject', credential: 'openrelayproject' };
+  const BASE_ICE = [
+    { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'turn:openrelay.metered.ca:80', ...OR }, { urls: 'turn:openrelay.metered.ca:443', ...OR },
+    { urls: 'turns:openrelay.metered.ca:443?transport=tcp', ...OR },
+  ];
+  let iceCache = null;
+  async function getIce() {
+    if (iceCache) return iceCache;
+    if (METERED_APP && METERED_KEY) {
+      try {
+        const r = await fetch(`https://${METERED_APP}.metered.live/api/v1/turn/credentials?apiKey=${METERED_KEY}`);
+        if (r.ok) return (iceCache = await r.json());
+      } catch (e) {}
+    }
+    return (iceCache = BASE_ICE);
+  }
+  const mkPeer = async (id) => { const config = { iceServers: await getIce() }; return id ? new Peer(id, { config }) : new Peer({ config }); };
+
   // ---- UI fixes: readable text, toast under reduced motion, allow pinch zoom ----
   const st = document.createElement('style');
   st.textContent = `.card span{font-size:.78rem}.nl{font-size:.75rem}.tk span{font-size:.78rem}
@@ -44,7 +66,7 @@ button:disabled{opacity:.5;cursor:not-allowed;filter:none}
   const MP = window.MP = {};
   const panel = $('#panel');
   let peer = null, conns = [], hostConn = null, isHost = false, slot = 0, slots = [true, false, false, false];
-  let track = 0, active = false, inMP = false, timer = 0, code = '', list = null;
+  let track = 0, active = false, inMP = false, timer = 0, code = '', list = null, gen = 0, joinT = 0;
   // keep menu hotkeys (Enter, digits, M, arrows) from firing while typing in lobby
   panel.addEventListener('keydown', (e) => { if (inMP) e.stopPropagation(); });
 
@@ -52,7 +74,7 @@ button:disabled{opacity:.5;cursor:not-allowed;filter:none}
   const note = (t) => { const e = $('#mm'); if (e) e.textContent = t; };
 
   function teardown() {
-    clearInterval(timer); active = false; list = null;
+    clearInterval(timer); clearTimeout(joinT); gen++; active = false; list = null;
     try { conns.forEach((c) => c.close()); } catch (e) {}
     try { if (hostConn) hostConn.close(); } catch (e) {}
     try { if (peer) peer.destroy(); } catch (e) {}
@@ -95,11 +117,13 @@ button:disabled{opacity:.5;cursor:not-allowed;filter:none}
 
   const lobby = () => { const m = { t: 'lobby', slots, track }; conns.forEach((c) => c.open && c.send(m)); render(); };
 
-  function hostRoom() {
+  async function hostRoom() {
     if (typeof Peer === 'undefined') return note('Online play needs internet.');
     teardown(); isHost = true; slot = 0; slots = [true, false, false, false]; track = G.trackIdx;
     code = Array.from({ length: 4 }, () => ABC[(Math.random() * ABC.length) | 0]).join('');
-    peer = new Peer(PFX + code);
+    const my = gen, p = await mkPeer(PFX + code);
+    if (my !== gen) { p.destroy(); return; }
+    peer = p;
     peer.on('open', () => { inMP = true; render(); });
     peer.on('error', (e) => { if (e.type === 'unavailable-id') hostRoom(); else note('Connection problem: ' + e.type); });
     peer.on('connection', (conn) => {
@@ -114,15 +138,19 @@ button:disabled{opacity:.5;cursor:not-allowed;filter:none}
     });
   }
 
-  function join() {
+  async function join() {
     const v = ($('#mc').value || '').trim().toUpperCase();
     if (v.length !== 4) return note('Enter the 4-character code.');
     if (typeof Peer === 'undefined') return note('Online play needs internet.');
     teardown(); isHost = false; code = v; note('Connecting…');
-    peer = new Peer();
+    const my = gen, p = await mkPeer();
+    if (my !== gen) { p.destroy(); return; }
+    peer = p;
     peer.on('error', (e) => note(e.type === 'peer-unavailable' ? 'Room not found.' : 'Connection problem: ' + e.type));
     peer.on('open', () => {
       hostConn = peer.connect(PFX + code, { reliable: true });
+      joinT = setTimeout(() => note('Still connecting. Ask the host to keep the room screen open. Some networks block direct play.'), 12000);
+      hostConn.on('open', () => { clearTimeout(joinT); note('Connected.'); });
       hostConn.on('data', (d) => onData(d, hostConn));
       hostConn.on('close', () => {
         const was = active; teardown();
