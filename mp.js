@@ -10,11 +10,15 @@
   // TURN relay: lets players on different networks connect. For best reach, make a free
   // account at metered.ca, create an app, and paste its app name and API key here.
   const METERED_APP = '', METERED_KEY = '';
-  const OR = { username: 'openrelayproject', credential: 'openrelayproject' };
+  const MU = '1d676475c53bd584694643e3', MC = 'HRo8LpXR0azCwMul';
   const BASE_ICE = [
-    { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'turn:openrelay.metered.ca:80', ...OR }, { urls: 'turn:openrelay.metered.ca:443', ...OR },
-    { urls: 'turns:openrelay.metered.ca:443?transport=tcp', ...OR },
+    { urls: 'stun:stun.relay.metered.ca:80' }, { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'turn:global.relay.metered.ca:80', username: MU, credential: MC },
+    { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: MU, credential: MC },
+    { urls: 'turn:global.relay.metered.ca:443', username: MU, credential: MC },
+    { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: MU, credential: MC },
+    { urls: 'turn:standard.relay.metered.ca:80', username: MU, credential: MC },
+    { urls: 'turn:standard.relay.metered.ca:443?transport=tcp', username: MU, credential: MC },
   ];
   let iceCache = null;
   async function getIce() {
