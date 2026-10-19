@@ -146,10 +146,14 @@ button:disabled{opacity:.5;cursor:not-allowed;filter:none}
     const my = gen, p = await mkPeer();
     if (my !== gen) { p.destroy(); return; }
     peer = p;
+    let opened = false;
+    joinT = setTimeout(() => note(opened
+      ? 'Room found but no direct link. Ask host to keep the room screen open. Your network may block direct play.'
+      : 'Cannot reach the matchmaking server (PeerJS). Check internet, or try another network or VPN.'), 12000);
     peer.on('error', (e) => note(e.type === 'peer-unavailable' ? 'Room not found.' : 'Connection problem: ' + e.type));
     peer.on('open', () => {
       hostConn = peer.connect(PFX + code, { reliable: true });
-      joinT = setTimeout(() => note('Still connecting. Ask the host to keep the room screen open. Some networks block direct play.'), 12000);
+      opened = true;
       hostConn.on('open', () => { clearTimeout(joinT); note('Connected.'); });
       hostConn.on('data', (d) => onData(d, hostConn));
       hostConn.on('close', () => {
